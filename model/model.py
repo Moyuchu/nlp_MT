@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from torch import nn
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutputWithPast
+import math
 
 from .config import LMConfig
 
