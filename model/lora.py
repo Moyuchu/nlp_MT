@@ -19,13 +19,15 @@ class LoRA(nn.Module):
         # And initialize A with normal distribution with mean 0 and std 0.02, and B with zeros
         # Write your code here
         self.rank = rank
-        self.A = nn.Parameter(torch.randn(in_features, rank) * 0.02)
-        self.B = nn.Parameter(torch.zeros(rank, out_features))
+        self.A = nn.Parameter(torch.zeros(rank, in_features))
+        self.B = nn.Parameter(torch.zeros(out_features, rank))
+        nn.init.normal_(self.A, mean=0.0, std=0.02)
+        nn.init.zeros_(self.B)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through the LoRA module."""
         # Write your code here
-        return x @ self.A.T @ self.B.T
+        return x @ (self.A.T @ self.B.T)
 
 
 def apply_lora(model: nn.Module, rank: int = 16):
