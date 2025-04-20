@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from torch import nn
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutputWithPast
+import math
 
 from .config import LMConfig
 
@@ -26,8 +27,10 @@ class RMSNorm(torch.nn.Module):
             torch.Tensor: Normalized tensor of the same shape as x
         """
         # Write your code here
-        norm = x.pow(2).mean(dim=-1, keepdim=True).add(self.eps).sqrt()
-        return self.weight * (x / norm)
+        # 计算均方根
+        rms = torch.sqrt(torch.mean(x ** 2, dim=-1, keepdim=True) + self.eps)
+        # 归一化
+        return self.weight * (x / rms)
 
 
 def precompute_pos_cis(dim: int, end: int = int(32 * 1024), theta: float = 1e6):
@@ -131,15 +134,21 @@ class Attention(nn.Module):
 
         # Implement attention
         # Write your code here
-        attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.head_dim))
-        attn_scores = attn_scores + self.mask[:, :, :seq_len, :seq_len]
-        attn_scores = F.softmax(attn_scores, dim=-1)
-        attn_scores = self.attn_dropout(attn_scores)
-
-        output = torch.matmul(attn_scores, xv)
+        # Implement attention
+        attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
+        # 获取当前序列长度
+        if past_key_value is not None:
+            start = past_key_value[0].shape[1]
+        else:
+            start = 0
+        attn_scores = attn_scores + self.mask[:, :, start:start + seq_len, :start + seq_len]
+        attn_probs = F.softmax(attn_scores, dim=-1)
+        attn_probs = self.attn_dropout(attn_probs)
+        output = torch.matmul(attn_probs, xv)
         output = output.transpose(1, 2).contiguous().view(bsz, seq_len, -1)
         output = self.wo(output)
         output = self.resid_dropout(output)
+
 
         return output, past_kv
 
