@@ -133,25 +133,36 @@ class Attention(nn.Module):
         # Implement attention
         # Write your code here
         # Implement attention
+
+        # 1. 标准缩放点积注意力
         attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
         
-        # Create dynamic causal mask based on query/key lengths
-        tgt_len = xq.size(-2)
-        src_len = xk.size(-2)
-        causal_mask = torch.tril(torch.ones((tgt_len, src_len), dtype=torch.bool, device=x.device))
-        causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)  # (1, 1, tgt_len, src_len)
+        # 2. 动态提取静态 causal mask（兼容 past_kv）
+        # 注意：self.mask shape 是 [1, 1, max_len, max_len]
+        # xk.shape[1] 是 key 序列长度（可能包含 past）
+        mask = self.mask[:, :, :seq_len, :xk.shape[1]]  # 保证维度匹配
         
-        attn_scores = attn_scores.masked_fill(~causal_mask, float("-inf"))
-        attn_scores = torch.clamp(attn_scores, min=-50, max=50)  # stabilize before softmax
+        # 3. 应用 mask（mask 已为 -inf，非因果区域将变为 -inf）
+        attn_scores = attn_scores + mask
         
+        # 4. 限制分数范围，避免 softmax NaN
+        attn_scores = torch.clamp(attn_scores, min=-50, max=50)
+        
+        # 5. softmax 注意力权重
+        if torch.isnan(attn_scores).any():
+            print("🚨 attn_scores has NaN before softmax")
+
         attn_weights = F.softmax(attn_scores, dim=-1)
         attn_weights = self.attn_dropout(attn_weights)
         
+        # 6. 得到注意力输出
         attn_output = torch.matmul(attn_weights, xv)
-        attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, seq_len, -1)
         
+        # 7. 还原 shape 并投影输出
+        attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, seq_len, -1)
         output = self.wo(attn_output)
         output = self.resid_dropout(output)
+
         
         return output, past_kv
 
