@@ -133,8 +133,8 @@ class Attention(nn.Module):
         # Implement attention
         # Write your code here
         attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        mask = self.mask[:, :, :seq_len, :xk.shape[-2]]  # xk.shape[-2] 是总的 key 长度（包括 past）
-        attn_scores = attn_scores.masked_fill(mask == float("-inf"), float("-inf"))
+        causal_mask = torch.tril(torch.ones((seq_len, xk.shape[1]), device=x.device)).unsqueeze(0).unsqueeze(0)
+        attn_scores = attn_scores.masked_fill(causal_mask == 0, float("-inf"))
         attn_weights = torch.nn.functional.softmax(attn_scores, dim=-1)
         attn_weights = self.attn_dropout(attn_weights)
         
