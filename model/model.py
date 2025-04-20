@@ -135,34 +135,17 @@ class Attention(nn.Module):
         # Implement attention
         # Scaled Dot-Product Attention
         # Implement attention
-
-        # 1. Scaled dot-product attention scores
+        # Implement attention
         attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        
-        # 2. Dynamic causal mask (supports kv cache)
-        tgt_len = xq.shape[-2]  # query length
-        src_len = xk.shape[-2]  # key length (may be longer if cache is used)
-        causal_mask = torch.tril(
-            torch.ones((tgt_len, src_len), dtype=torch.bool, device=xq.device)
-        ).unsqueeze(0).unsqueeze(0)  # shape: (1, 1, tgt_len, src_len)
-        
-        # 3. Apply causal mask safely
-        attn_scores = attn_scores.masked_fill(~causal_mask, float("-inf"))
-        
-        # 4. Clamp to avoid overflow in softmax
-        attn_scores = torch.clamp(attn_scores, min=-50, max=50)
-        
-        # 5. Softmax + dropout
+        mask_to_apply = self.mask[:, :, :seq_len, :xk.size(-2)]
+        attn_scores = attn_scores + mask_to_apply
         attn_weights = F.softmax(attn_scores, dim=-1)
-        attn_weights = self.attn_dropout(attn_weights)
+        attn_output = torch.matmul(attn_weights, xv)
         
-        # 6. Attention output
-        output = torch.matmul(attn_weights, xv)
-        output = output.transpose(1, 2).contiguous().view(bsz, seq_len, -1)
+        attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, seq_len, -1)
+        output = self.wo(attn_output)
         
-        # 7. Final linear + dropout
-        output = self.wo(output)
-        output = self.resid_dropout(output)
+
 
         
         return output, past_kv
