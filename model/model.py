@@ -142,27 +142,32 @@ class Attention(nn.Module):
         # output = self.wo(output)
         # output = self.resid_dropout(output)
         # Implement attention
-        # 1. Scaled dot-product
+        # Scaled Dot-Product Attention
         attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
         
-        # 2. Clamp to avoid Inf (if mask adds -inf)
-        attn_scores = attn_scores + self.mask[:, :, :seq_len, xk.shape[1]]
+        # Use dynamic mask based on xk shape (for caching)
+        mask = self.mask[:, :, :seq_len, :xk.shape[1]]
         
-        # 3. Clamp scores to a finite range (avoid NaN/Inf in softmax)
+        # Avoid adding -inf directly → convert mask to bool
+        attn_scores = attn_scores.masked_fill(mask == float('-inf'), float('-inf'))
+        
+        # Clamp scores to avoid overflows in softmax
         attn_scores = torch.clamp(attn_scores, min=-50, max=50)
         
-        # 4. Softmax
-        attn_scores = F.softmax(attn_scores, dim=-1)
-        attn_scores = self.attn_dropout(attn_scores)
+        # Compute attention weights
+        attn_weights = F.softmax(attn_scores, dim=-1)
+        attn_weights = self.attn_dropout(attn_weights)
         
-        # 5. Weighted sum over values
-        output = torch.matmul(attn_scores, xv)
+        # Sanity check before moving on
+        if torch.isnan(attn_weights).any():
+            print("⚠️ attn_weights has NaN!")
+            raise RuntimeError("NaN in attention weights")
         
-        # 6. Reshape and output projection
+        # Weighted sum over values
+        output = torch.matmul(attn_weights, xv)
         output = output.transpose(1, 2).contiguous().view(bsz, seq_len, -1)
         output = self.wo(output)
         output = self.resid_dropout(output)
-
         
         return output, past_kv
 
