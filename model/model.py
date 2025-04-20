@@ -3,7 +3,6 @@ import torch.nn.functional as F
 from torch import nn
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutputWithPast
-import math
 
 from .config import LMConfig
 
@@ -27,8 +26,10 @@ class RMSNorm(torch.nn.Module):
             torch.Tensor: Normalized tensor of the same shape as x
         """
         # Write your code here
-        norm = x.pow(2).mean(dim=-1, keepdim=True).add(self.eps).sqrt()
-        return self.weight * (x / norm)
+        return self.weight * self._norm(x)
+
+    def _norm(self, x: torch.Tensor):
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
 
 
 def precompute_pos_cis(dim: int, end: int = int(32 * 1024), theta: float = 1e6):
@@ -132,31 +133,14 @@ class Attention(nn.Module):
 
         # Implement attention
         # Write your code here
-        # Implement attention
+        attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.head_dim))
+        attn_scores = attn_scores + self.mask[:, :, :seq_len, :seq_len]
+        attn_scores = F.softmax(attn_scores, dim=-1)
+        attn_scores = self.attn_dropout(attn_scores)
 
-        # Implement attention
-
-        # Scaled dot-product attention
-        attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        
-        # 关键：计算 key 序列长度（在 transpose 后 key_len 是 xk.shape[-2]）
-        key_len = xk.shape[-2]
-        
-        # 正确提取 mask（self.mask 是 [1, 1, max_len, max_len]）
-        mask_to_apply = self.mask[:, :, :seq_len, :key_len]  # key_len is real sequence length
-        
-        # 应用 mask，防止 softmax 溢出
-        attn_scores = attn_scores + mask_to_apply
-        attn_scores = torch.clamp(attn_scores, min=-50, max=50)
-        
-        # softmax + dropout
-        attn_weights = F.softmax(attn_scores, dim=-1)
-        attn_weights = self.attn_dropout(attn_weights)
-        
-        # attention 输出
-        attn_output = torch.matmul(attn_weights, xv)
-        attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, seq_len, -1)
-        output = self.wo(attn_output)
+        output = torch.matmul(attn_scores, xv)
+        output = output.transpose(1, 2).contiguous().view(bsz, seq_len, -1)
+        output = self.wo(output)
         output = self.resid_dropout(output)
 
         return output, past_kv
@@ -198,21 +182,9 @@ class MiniMindBlock(nn.Module):
             past_key_value=past_key_value,
             use_cache=use_cache,
         )
-        if torch.isnan(h_attn).any():
-            print(f"🚨 NaN in attention output (layer {self.layer_id})")
-            raise RuntimeError("NaN in attention")
-    
         h = x + h_attn
-        ff_in = self.ffn_norm(h)
-    
-        ffn_out = self.feed_forward(ff_in)
-        if torch.isnan(ffn_out).any():
-            print(f"🚨 NaN in FFN output (layer {self.layer_id})")
-            raise RuntimeError("NaN in feedforward")
-    
-        out = h + ffn_out
+        out = h + self.feed_forward(self.ffn_norm(h))
         return out, past_kv
-
 
 
 class MiniMindLM(PreTrainedModel):
@@ -269,13 +241,6 @@ class MiniMindLM(PreTrainedModel):
                     **args,
                 )
             logits, past_kvs = out.logits[:, -1, :], out.past_key_values
-            # ✅ 检查 logits 是否非法
-            if torch.isnan(logits).any() or torch.isinf(logits).any() or (logits < -1e10).any() or (logits > 1e10).any():
-                print("🚨 LOGITS CONTAINS NaN/INF/EXTREME VALUES")
-                print("logits:", logits)
-                print("input_ids:", input_ids)
-                torch.save(logits, "bad_logits.pt")
-                raise RuntimeError("Unsafe logits — cannot proceed to sampling.")
             logits[:, list(set(input_ids.tolist()[0]))] /= rp
             logits /= temperature + 1e-9
             if top_p is not None and top_p < 1.0:
