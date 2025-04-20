@@ -19,7 +19,7 @@ def parse_args():
     # SFT stage learning rate is "5e-6"->"5e-7" for length 512
     # For offline positive/negative sample preference alignment stage,
     # recommended lr <= "1e-8" for length 3000, otherwise it's easy to forget and degrade
-    parser.add_argument("--learning_rate", type=float, default=1e-8)
+    parser.add_argument("--learning_rate", type=float, default=3e-8)
     parser.add_argument("--device", type=str, default="cuda:0" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--dtype", type=str, default="bfloat16")
     parser.add_argument("--use_wandb", action="store_true")
