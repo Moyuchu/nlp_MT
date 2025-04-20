@@ -203,9 +203,21 @@ class MiniMindBlock(nn.Module):
             past_key_value=past_key_value,
             use_cache=use_cache,
         )
+        if torch.isnan(h_attn).any():
+            print(f"🚨 NaN in attention output (layer {self.layer_id})")
+            raise RuntimeError("NaN in attention")
+    
         h = x + h_attn
-        out = h + self.feed_forward(self.ffn_norm(h))
+        ff_in = self.ffn_norm(h)
+    
+        ffn_out = self.feed_forward(ff_in)
+        if torch.isnan(ffn_out).any():
+            print(f"🚨 NaN in FFN output (layer {self.layer_id})")
+            raise RuntimeError("NaN in feedforward")
+    
+        out = h + ffn_out
         return out, past_kv
+
 
 
 class MiniMindLM(PreTrainedModel):
