@@ -133,20 +133,25 @@ class Attention(nn.Module):
         # Implement attention
         # Write your code here
         # Implement attention
-        # Scaled Dot-Product Attention
-        # Implement attention
-        # Implement attention
         attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        mask_to_apply = self.mask[:, :, :seq_len, :xk.size(-2)]
-        attn_scores = attn_scores + mask_to_apply
+        
+        # Create dynamic causal mask based on query/key lengths
+        tgt_len = xq.size(-2)
+        src_len = xk.size(-2)
+        causal_mask = torch.tril(torch.ones((tgt_len, src_len), dtype=torch.bool, device=x.device))
+        causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)  # (1, 1, tgt_len, src_len)
+        
+        attn_scores = attn_scores.masked_fill(~causal_mask, float("-inf"))
+        attn_scores = torch.clamp(attn_scores, min=-50, max=50)  # stabilize before softmax
+        
         attn_weights = F.softmax(attn_scores, dim=-1)
+        attn_weights = self.attn_dropout(attn_weights)
+        
         attn_output = torch.matmul(attn_weights, xv)
-        
         attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, seq_len, -1)
-        output = self.wo(attn_output)
         
-
-
+        output = self.wo(attn_output)
+        output = self.resid_dropout(output)
         
         return output, past_kv
 
