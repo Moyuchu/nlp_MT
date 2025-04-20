@@ -143,8 +143,10 @@ class Attention(nn.Module):
         mask = self.mask[:, :, :seq_len, :xk.shape[1]]  # 保证维度匹配
         
         # 3. 应用 mask（mask 已为 -inf，非因果区域将变为 -inf）
-        attn_scores = attn_scores + mask
-        
+        # 强制对 mask 做广播匹配（保证维度一致）
+        mask_to_apply = self.mask[:, :, :seq_len, :xk.size(1)]
+        attn_scores = attn_scores + mask_to_apply
+ 
         # 4. 限制分数范围，避免 softmax NaN
         attn_scores = torch.clamp(attn_scores, min=-50, max=50)
         
