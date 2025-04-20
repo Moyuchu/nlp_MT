@@ -132,34 +132,23 @@ class Attention(nn.Module):
 
         # Implement attention
         # Write your code here
-        if self.flash and seq_len != 1:
+        if hasattr(F, 'scaled_dot_product_attention') and seq_len > 1:
+            # Use flash attention if available
             dropout_p = self.dropout if self.training else 0.0
             output = F.scaled_dot_product_attention(
-                xq, xk, xv,
+                xq, xk, xv, 
                 attn_mask=None,
                 dropout_p=dropout_p,
                 is_causal=True
             )
         else:
+            # Standard attention implementation
             scores = (xq @ xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
-            
-            # 创建适合当前维度的因果掩码
-            if key_seq_len <= self.mask.size(-1):
-                # 使用预计算的掩码，但注意调整尺寸
-                causal_mask = self.mask[:, :, :seq_len, :key_seq_len]
-            else:
-                # 如果序列长度超出预定义掩码大小，动态创建掩码
-                causal_mask = torch.triu(
-                    torch.full((seq_len, key_seq_len), float("-inf"), device=scores.device),
-                    diagonal=1
-                )
-                causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)
-            
-            scores = scores + causal_mask
+            scores = scores + self.mask[:, :, :seq_len, :xk.size(2)]
             scores = F.softmax(scores.float(), dim=-1).type_as(xq)
             scores = self.attn_dropout(scores)
             output = scores @ xv
-    
+        
         output = output.transpose(1, 2).reshape(bsz, seq_len, -1)
         output = self.resid_dropout(self.wo(output))
 
