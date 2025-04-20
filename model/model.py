@@ -262,6 +262,13 @@ class MiniMindLM(PreTrainedModel):
                     **args,
                 )
             logits, past_kvs = out.logits[:, -1, :], out.past_key_values
+            # ✅ 检查 logits 是否非法
+            if torch.isnan(logits).any() or torch.isinf(logits).any() or (logits < -1e10).any() or (logits > 1e10).any():
+                print("🚨 LOGITS CONTAINS NaN/INF/EXTREME VALUES")
+                print("logits:", logits)
+                print("input_ids:", input_ids)
+                torch.save(logits, "bad_logits.pt")
+                raise RuntimeError("Unsafe logits — cannot proceed to sampling.")
             logits[:, list(set(input_ids.tolist()[0]))] /= rp
             logits /= temperature + 1e-9
             if top_p is not None and top_p < 1.0:
