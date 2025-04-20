@@ -14,7 +14,7 @@ def parse_args():
     parser.add_argument("--out_dir", type=str, default="out")
     parser.add_argument("--temperature", default=0.85, type=float)
     parser.add_argument("--top_p", default=0.85, type=float)
-    parser.add_argument("--epochs", type=int, default=1)
+    parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--batch_size", type=int, default=8)
     # SFT stage learning rate is "5e-6"->"5e-7" for length 512
     # For offline positive/negative sample preference alignment stage,
@@ -34,7 +34,7 @@ def parse_args():
     parser.add_argument("--local_rank", type=int, default=-1)
     parser.add_argument("--dim", default=512, type=int)
     parser.add_argument("--n_layers", default=8, type=int)
-    parser.add_argument("--max_seq_len", default=1000, type=int)
+    parser.add_argument("--max_seq_len", default=150, type=int)
     parser.add_argument("--max_new_tokens", type=int, default=1024)
     parser.add_argument("--data_path", type=str, default="./data/dpo.jsonl")
 
