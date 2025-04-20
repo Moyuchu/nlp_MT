@@ -133,7 +133,8 @@ class Attention(nn.Module):
         # Implement attention
         # Write your code here
         attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        attn_scores = attn_scores + self.mask[:, :, :seq_len, :seq_len]
+        mask_to_apply = self.mask[:, :, :seq_len, :xk.size(-2)]
+        attn_scores = attn_scores + mask_to_apply
         attn_weights = F.softmax(attn_scores, dim=-1)
         attn_output = torch.matmul(attn_weights, xv)
 
