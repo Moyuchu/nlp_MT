@@ -132,25 +132,20 @@ class Attention(nn.Module):
 
         # Implement attention
         # Write your code here
-        if hasattr(F, 'scaled_dot_product_attention') and seq_len > 1:
-            # Use flash attention if available
-            dropout_p = self.dropout if self.training else 0.0
-            output = F.scaled_dot_product_attention(
-                xq, xk, xv, 
-                attn_mask=None,
-                dropout_p=dropout_p,
-                is_causal=True
-            )
-        else:
-            # Standard attention implementation
-            scores = (xq @ xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
-            scores = scores + self.mask[:, :, :seq_len, :xk.size(2)]
-            scores = F.softmax(scores.float(), dim=-1).type_as(xq)
-            scores = self.attn_dropout(scores)
-            output = scores @ xv
+        attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
+        attn_scores = attn_scores + self.mask[:, :, :seq_len, :seq_len]  # Apply the attention mask
+        attn_weights = torch.nn.functional.softmax(attn_scores, dim=-1)
+        attn_weights = self.attn_dropout(attn_weights)
         
-        output = output.transpose(1, 2).reshape(bsz, seq_len, -1)
-        output = self.resid_dropout(self.wo(output))
+        # Calculate the output from the attention weights and values
+        attn_output = torch.matmul(attn_weights, xv)
+        
+        # Reshape the output to match the expected shape
+        attn_output = attn_output.transpose(1, 2).reshape(bsz, seq_len, self.n_heads * self.head_dim)
+        
+        # Apply the final output linear transformation
+        output = self.wo(attn_output)
+        output = self.resid_dropout(output)
 
         return output, past_kv
 
