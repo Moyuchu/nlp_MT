@@ -27,8 +27,8 @@ class RMSNorm(torch.nn.Module):
             torch.Tensor: Normalized tensor of the same shape as x
         """
         # Write your code here
-        norm = x.norm(2, dim=-1, keepdim=True) / (x.shape[-1] ** 0.5)
-        return self.weight * (x / (norm + self.eps))
+        norm = x.pow(2).mean(dim=-1, keepdim=True).add(self.eps).sqrt()
+        return self.weight * (x / norm)
 
 
 def precompute_pos_cis(dim: int, end: int = int(32 * 1024), theta: float = 1e6):
