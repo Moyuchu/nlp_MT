@@ -132,22 +132,30 @@ class Attention(nn.Module):
 
         # Implement attention
         # Write your code here
+        # QK attention scores
         attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        causal_mask = torch.tril(torch.ones((seq_len, xk.shape[1]), device=x.device)).unsqueeze(0).unsqueeze(0)
-        attn_scores = attn_scores.masked_fill(causal_mask == 0, float("-inf"))
-        attn_weights = torch.nn.functional.softmax(attn_scores, dim=-1)
+        
+        # Dynamic causal mask
+        tgt_len = xq.shape[-2]  # length of query
+        src_len = xk.shape[-2]  # length of key (may include past)
+        causal_mask = torch.tril(torch.ones((tgt_len, src_len), dtype=torch.bool, device=x.device))
+        causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)  # shape: (1, 1, tgt_len, src_len)
+        
+        # Apply mask: mask future tokens (set to -inf)
+        attn_scores = attn_scores.masked_fill(~causal_mask, float("-inf"))
+        
+        # Attention weights
+        attn_weights = F.softmax(attn_scores, dim=-1)
         attn_weights = self.attn_dropout(attn_weights)
         
-        # Calculate the output from the attention weights and values
+        # Weighted sum over V
         attn_output = torch.matmul(attn_weights, xv)
         
-        # Reshape the output to match the expected shape
+        # Reshape and output projection
         attn_output = attn_output.transpose(1, 2).reshape(bsz, seq_len, self.n_heads * self.head_dim)
-        
-        # Apply the final output linear transformation
         output = self.wo(attn_output)
         output = self.resid_dropout(output)
-
+        
         return output, past_kv
 
 
