@@ -132,28 +132,14 @@ class Attention(nn.Module):
 
         # Implement attention
         # Write your code here
-        # QK attention scores
-        attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        
-        # Dynamic causal mask
-        tgt_len = xq.shape[-2]  # length of query
-        src_len = xk.shape[-2]  # length of key (may include past)
-        causal_mask = torch.tril(torch.ones((tgt_len, src_len), dtype=torch.bool, device=x.device))
-        causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)  # shape: (1, 1, tgt_len, src_len)
-        
-        # Apply mask: mask future tokens (set to -inf)
-        attn_scores = attn_scores.masked_fill(~causal_mask, float("-inf"))
-        
-        # Attention weights
-        attn_weights = F.softmax(attn_scores, dim=-1)
-        attn_weights = self.attn_dropout(attn_weights)
-        
-        # Weighted sum over V
-        attn_output = torch.matmul(attn_weights, xv)
-        
-        # Reshape and output projection
-        attn_output = attn_output.transpose(1, 2).reshape(bsz, seq_len, self.n_heads * self.head_dim)
-        output = self.wo(attn_output)
+        attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.head_dim))
+        attn_scores = attn_scores + self.mask[:, :, :seq_len, :seq_len]
+        attn_scores = F.softmax(attn_scores, dim=-1)
+        attn_scores = self.attn_dropout(attn_scores)
+
+        output = torch.matmul(attn_scores, xv)
+        output = output.transpose(1, 2).contiguous().view(bsz, seq_len, -1)
+        output = self.wo(output)
         output = self.resid_dropout(output)
         
         return output, past_kv
