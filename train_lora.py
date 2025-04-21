@@ -17,7 +17,7 @@ def parse_args():
     parser.add_argument("--top_p", default=0.85, type=float)
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--learning_rate", type=float, default=1e-5)
+    parser.add_argument("--learning_rate", type=float, default=5e-5)
     parser.add_argument("--device", type=str, default="cuda:0" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--dtype", type=str, default="bfloat16")
     parser.add_argument("--use_wandb", action="store_true")
@@ -35,7 +35,7 @@ def parse_args():
     parser.add_argument("--max_seq_len", default=512, type=int)
     parser.add_argument("--max_new_tokens", type=int, default=1024)
     parser.add_argument("--data_path", type=str, default="./data/lora.jsonl")
-    parser.add_argument("--lora_rank", type=int, default=16)
+    parser.add_argument("--lora_rank", type=int, default=4)
 
     args = parser.parse_args()
     args.wandb_run_name = (
