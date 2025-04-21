@@ -27,9 +27,7 @@ class RMSNorm(torch.nn.Module):
             torch.Tensor: Normalized tensor of the same shape as x
         """
         # Write your code here
-        # 计算均方根
         rms = torch.sqrt(torch.mean(x ** 2, dim=-1, keepdim=True) + self.eps)
-        # 归一化
         return self.weight * (x / rms)
 
 
@@ -134,9 +132,7 @@ class Attention(nn.Module):
 
         # Implement attention
         # Write your code here
-        # Implement attention
         attn_scores = torch.matmul(xq, xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        # 获取当前序列长度
         if past_key_value is not None:
             start = past_key_value[0].shape[1]
         else:
@@ -148,7 +144,6 @@ class Attention(nn.Module):
         output = output.transpose(1, 2).contiguous().view(bsz, seq_len, -1)
         output = self.wo(output)
         output = self.resid_dropout(output)
-
 
         return output, past_kv
 
